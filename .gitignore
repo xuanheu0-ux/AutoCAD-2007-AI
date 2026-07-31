@@ -1,0 +1,16 @@
+# Never commit the secret URL path -- it is the server's password.
+.secret
+
+logs/
+output/
+__pycache__/
+*.pyc
+
+# Runtime logs and local backups
+server-run.log
+server-err.log
+*.before-prune*
+*.bak
+
+# Contains an ngrok authtoken
+ngrok.yml
