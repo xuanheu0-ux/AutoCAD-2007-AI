@@ -1,0 +1,6 @@
+{
+  "name": "AutoCAD 2007 AI",
+  "description": "AutoCAD 2D drafting MCP server and interactive CAD workspace with model context protocol support, live CAD renderer, smoke tests, and AI drawing assistance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
