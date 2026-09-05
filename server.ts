@@ -204,15 +204,37 @@ async function startServer() {
 
   app.get('/api/cad/export/dxf', (req, res) => {
     const dxf = cadEngine.exportDxf();
+    const safeAsciiName = (cadEngine.drawingName || 'drawing.dwg')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace('.dwg', '.dxf');
+    const encodedName = encodeURIComponent((cadEngine.drawingName || 'drawing.dwg').replace('.dwg', '.dxf'));
     res.setHeader('Content-Type', 'application/dxf');
-    res.setHeader('Content-Disposition', `attachment; filename="${cadEngine.drawingName.replace('.dwg', '.dxf')}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${safeAsciiName}"; filename*=UTF-8''${encodedName}`
+    );
     res.send(dxf);
   });
 
   app.get('/api/cad/export/svg', (req, res) => {
     const svg = cadEngine.captureViewSvg(true);
+    const safeSvgName = (cadEngine.drawingName || 'drawing.dwg')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace('.dwg', '.svg');
+    const encodedSvgName = encodeURIComponent((cadEngine.drawingName || 'drawing.dwg').replace('.dwg', '.svg'));
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Content-Disposition', 'attachment; filename="cad-drawing.svg"');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${safeSvgName}"; filename*=UTF-8''${encodedSvgName}`
+    );
     res.send(svg);
   });
 
@@ -231,12 +253,85 @@ async function startServer() {
     });
   });
 
+  // Dedicated endpoint to load the control room 2-leaf door technical drawing
+  app.post('/api/cad/door-drawing', (req, res) => {
+    const count = cadEngine.drawControlRoomDoor();
+    res.json({
+      summary: `Đã nạp bản vẽ kỹ thuật Cửa đi lại nhà vận hành bảng điện loại khung nhôm hộp 2 cánh kính trắng dán an toàn mở trong (1700x2500mm) với ${count} thực thể CAD.`,
+      handles: cadEngine.entities.map((e) => e.handle),
+      state: {
+        entities: cadEngine.entities,
+        layers: cadEngine.layers,
+        drawingInfo: cadEngine.getDrawingInfo(),
+        auditLogs: cadEngine.auditLogs.slice(0, 50),
+      },
+    });
+  });
+
+  // Dedicated endpoint to rotate all text and numbers (dimensions)
+  app.post('/api/cad/rotate-text', (req, res) => {
+    const angle = req.body?.angle !== undefined ? Number(req.body.angle) : 180;
+    const result = cadEngine.rotateAllText(angle);
+    res.json({
+      summary: `Đã chỉnh lại chữ và số đo quay ${angle}° (${result.textCount} chữ viết và ${result.dimCount} nhãn kích thước).`,
+      state: {
+        entities: cadEngine.entities,
+        layers: cadEngine.layers,
+        drawingInfo: cadEngine.getDrawingInfo(),
+        auditLogs: cadEngine.auditLogs.slice(0, 50),
+      },
+      ...result,
+    });
+  });
+
   // --- AI Drawing Assistant (Gemini) ---
   app.post('/api/cad/ai-draw', async (req, res) => {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
     const lower = prompt.toLowerCase();
+
+    // Check if user is requesting rotating text / numbers 180 degrees
+    if (
+      (lower.includes('180') && (lower.includes('chữ') || lower.includes('số') || lower.includes('xoay') || lower.includes('quay'))) ||
+      (lower.includes('xoay') && (lower.includes('chữ') || lower.includes('số')))
+    ) {
+      const angle = lower.includes('90') ? 90 : 180;
+      const result = cadEngine.rotateAllText(angle);
+      return res.json({
+        summary: `Đã chỉnh lại chữ và số đo quay ${angle}° (${result.textCount} thực thể chữ viết và ${result.dimCount} nhãn kích thước).`,
+        state: {
+          entities: cadEngine.entities,
+          layers: cadEngine.layers,
+          drawingInfo: cadEngine.getDrawingInfo(),
+          auditLogs: cadEngine.auditLogs.slice(0, 50),
+        },
+      });
+    }
+
+    // Check if user is requesting control room door drawing
+    if (
+      lower.includes('bảng điện') ||
+      lower.includes('vận hành') ||
+      lower.includes('kính trắng') ||
+      (lower.includes('cửa') && lower.includes('mở trong')) ||
+      (lower.includes('cửa') && lower.includes('2 cánh')) ||
+      (lower.includes('cửa') && lower.includes('2,5')) ||
+      (lower.includes('cửa') && lower.includes('2.5'))
+    ) {
+      const count = cadEngine.drawControlRoomDoor();
+      return res.json({
+        summary: `Đã vẽ bản vẽ kỹ thuật: Cửa đi lại nhà vận hành bảng điện loại khung nhôm hộp 2 cánh kính trắng dán an toàn, mở trong (W1.7m x H2.5m) gồm mặt đứng, mặt bằng quỹ đạo mở trong, mặt cắt đứng A-A và bảng kỹ thuật an toàn điện (${count} thực thể CAD).`,
+        handles: cadEngine.entities.map((e) => e.handle),
+        state: {
+          entities: cadEngine.entities,
+          layers: cadEngine.layers,
+          drawingInfo: cadEngine.getDrawingInfo(),
+          auditLogs: cadEngine.auditLogs.slice(0, 50),
+        },
+      });
+    }
+
     // Check if user is requesting gate drawing
     if (
       lower.includes('cổng') ||

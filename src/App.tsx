@@ -46,6 +46,7 @@ export function App() {
   const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [smokeTestRunning, setSmokeTestRunning] = useState<boolean>(false);
   const [smokeTestSteps, setSmokeTestSteps] = useState<SmokeTestStepResult[]>([]);
+  const [isTextRotated180, setIsTextRotated180] = useState<boolean>(false);
 
   // Fetch CAD state from server
   const refreshState = useCallback(async () => {
@@ -282,6 +283,50 @@ export function App() {
     }
   };
 
+  // Load 2-leaf electrical control room door drawing
+  const handleLoadDoorDrawing = async () => {
+    setCommandLogs((prev) => [...prev, 'Loading: Bản vẽ Cửa đi lại nhà vận hành bảng điện 2 cánh mở trong (1700x2500mm)...']);
+    try {
+      const res = await fetch('/api/cad/door-drawing', { method: 'POST' });
+      const data = await res.json();
+      if (data.state) {
+        setEntities(data.state.entities || []);
+        setLayers(data.state.layers || []);
+        if (data.state.drawingInfo) setDrawingInfo(data.state.drawingInfo);
+        if (data.state.auditLogs) setAuditLogs(data.state.auditLogs);
+      }
+      setSelectedHandle(null);
+      setIsTextRotated180(false);
+      setCommandLogs((prev) => [...prev, data.summary || 'Door drawing loaded successfully.']);
+    } catch (err: any) {
+      console.error('Door load error:', err);
+    }
+  };
+
+  // Rotate text and dimension numbers 180 degrees
+  const handleRotateText = async () => {
+    try {
+      const angle = 180;
+      const res = await fetch('/api/cad/rotate-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ angle }),
+      });
+      const data = await res.json();
+      if (data.state) {
+        setEntities(data.state.entities || []);
+        if (data.state.auditLogs) setAuditLogs(data.state.auditLogs);
+      }
+      setIsTextRotated180((prev) => !prev);
+      setCommandLogs((prev) => [
+        ...prev,
+        data.summary || `Đã chỉnh lại chữ và số đo quay ${angle}°.`,
+      ]);
+    } catch (err: any) {
+      console.error('Rotate text error:', err);
+    }
+  };
+
   // Layer Operations
   const handleSelectLayer = async (name: string) => {
     try {
@@ -351,6 +396,9 @@ export function App() {
         onRunSmokeTest={handleRunSmokeTest}
         onOpenAiDraw={() => setShowAiModal(true)}
         onLoadGateDrawing={handleLoadGateDrawing}
+        onLoadDoorDrawing={handleLoadDoorDrawing}
+        onRotateText={handleRotateText}
+        isTextRotated180={isTextRotated180}
         onNewDrawing={handleNewDrawing}
         onCaptureView={handleCaptureView}
         onQuickDraw={handleQuickDraw}

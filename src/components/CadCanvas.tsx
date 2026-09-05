@@ -351,7 +351,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
           // Measurement Text (vertical)
           ctx.save();
           ctx.translate(textPos.x, textPos.y);
-          ctx.rotate(-Math.PI / 2);
+          const rotAngle = ((entity.rotation || 0) * Math.PI) / 180;
+          ctx.rotate(-Math.PI / 2 - rotAngle);
           ctx.font = '11px "Courier New", monospace';
           const label = `${entity.measured_value?.toFixed(0) || ''}`;
           const metrics = ctx.measureText(label);
@@ -375,13 +376,19 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
           ctx.stroke();
 
           // Measurement Text
+          ctx.save();
+          ctx.translate(textPos.x, textPos.y);
+          if (entity.rotation) {
+            ctx.rotate((-entity.rotation * Math.PI) / 180);
+          }
           ctx.font = '11px "Courier New", monospace';
           const label = `${entity.measured_value?.toFixed(0) || ''}`;
           const metrics = ctx.measureText(label);
           ctx.fillStyle = '#212428';
-          ctx.fillRect(textPos.x - metrics.width / 2 - 4, textPos.y - 7, metrics.width + 8, 14);
+          ctx.fillRect(-metrics.width / 2 - 4, -7, metrics.width + 8, 14);
           ctx.fillStyle = '#00e5ff';
-          ctx.fillText(label, textPos.x - metrics.width / 2, textPos.y + 4);
+          ctx.fillText(label, -metrics.width / 2, 4);
+          ctx.restore();
         }
 
         ctx.restore();

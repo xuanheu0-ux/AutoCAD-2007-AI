@@ -16,6 +16,8 @@ import {
   Maximize,
   HelpCircle,
   Columns3,
+  Zap,
+  RotateCw,
 } from 'lucide-react';
 
 interface CadToolbarProps {
@@ -27,6 +29,9 @@ interface CadToolbarProps {
   onRunSmokeTest: () => void;
   onOpenAiDraw: () => void;
   onLoadGateDrawing?: () => void;
+  onLoadDoorDrawing?: () => void;
+  onRotateText?: () => void;
+  isTextRotated180?: boolean;
   onNewDrawing: () => void;
   onCaptureView: () => void;
   onQuickDraw: (type: string) => void;
@@ -46,6 +51,9 @@ export const CadToolbar: React.FC<CadToolbarProps> = ({
   onRunSmokeTest,
   onOpenAiDraw,
   onLoadGateDrawing,
+  onLoadDoorDrawing,
+  onRotateText,
+  isTextRotated180,
   onNewDrawing,
   onCaptureView,
   onQuickDraw,
@@ -192,6 +200,41 @@ export const CadToolbar: React.FC<CadToolbarProps> = ({
             >
               <Columns3 size={13} className="text-cyan-300" />
               <span>Cổng 4 cánh (4x3.4m)</span>
+            </button>
+          )}
+
+          {/* Cửa phòng điện 2 cánh button */}
+          {onLoadDoorDrawing && (
+            <button
+              id="load-door-drawing-btn"
+              onClick={onLoadDoorDrawing}
+              title="Tải bản vẽ Cửa đi lại nhà vận hành bảng điện 2 cánh khung nhôm hộp kính an toàn mở trong (1700x2500mm)"
+              className="flex items-center gap-1.5 px-3 py-1 bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white rounded text-xs font-medium border border-amber-500 shadow-sm transition"
+            >
+              <Zap size={13} className="text-amber-300" />
+              <span>Cửa phòng điện (1.7x2.5m)</span>
+            </button>
+          )}
+
+          {/* Rotate Text & Numbers 180° button */}
+          {onRotateText && (
+            <button
+              id="rotate-text-btn"
+              onClick={onRotateText}
+              title="Chỉnh/Xoay toàn bộ chữ viết và số đo kích thước quay 180°"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border shadow-sm transition ${
+                isTextRotated180
+                  ? 'bg-emerald-700 hover:bg-emerald-600 text-emerald-100 border-emerald-500'
+                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border-neutral-700'
+              }`}
+            >
+              <RotateCw size={13} className={isTextRotated180 ? 'text-emerald-300' : 'text-neutral-400'} />
+              <span>Xoay chữ/số</span>
+              <span className={`px-1 py-0.2 rounded text-[10px] font-mono ${
+                isTextRotated180 ? 'bg-emerald-900/90 text-emerald-200' : 'bg-neutral-700 text-neutral-400'
+              }`}>
+                {isTextRotated180 ? '180°' : '0°'}
+              </span>
             </button>
           )}
 

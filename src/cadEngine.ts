@@ -1,5 +1,6 @@
 import { CadEntity, CadLayer, DrawingInfo, ToolCallLog, SmokeTestStepResult } from './types.js';
 import { buildAluminumGateDrawing } from './gateDrawing.js';
+import { buildControlRoomDoorDrawing } from './controlRoomDoorDrawing.js';
 
 export const COLORS: Record<string, number> = {
   red: 1,
@@ -40,6 +41,26 @@ export function parseColorIndex(color: string | number | undefined): number {
   if (!isNaN(num)) return Math.max(1, Math.min(255, num));
   if (COLORS[str] !== undefined) return COLORS[str];
   return 7;
+}
+
+export function escapeXml(unsafe: string): string {
+  if (!unsafe) return '';
+  return String(unsafe).replace(/[<>&'"]/g, (c) => {
+    switch (c) {
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '&':
+        return '&amp;';
+      case "'":
+        return '&apos;';
+      case '"':
+        return '&quot;';
+      default:
+        return c;
+    }
+  });
 }
 
 export class CadEngine {
@@ -605,6 +626,24 @@ export class CadEngine {
     return this.drawingName;
   }
 
+  // Rotate all text and dimension entities by a specified angle (e.g. 180 degrees)
+  public rotateAllText(angle: number = 180): { textCount: number; dimCount: number; totalCount: number } {
+    let textCount = 0;
+    let dimCount = 0;
+    for (const e of this.entities) {
+      if (e.type === 'AcDbText' || e.type === 'AcDbMText') {
+        e.rotation = (((e.rotation || 0) + angle) % 360 + 360) % 360;
+        textCount++;
+      } else if (e.type === 'AcDbRotatedDimension' || e.type === 'AcDbAlignedDimension') {
+        e.rotation = (((e.rotation || 0) + angle) % 360 + 360) % 360;
+        dimCount++;
+      }
+    }
+    this.saved = false;
+    this.recordLog('rotate_all_text', { angle }, `Rotated ${textCount} text and ${dimCount} dimension labels by ${angle}°`, 0.005);
+    return { textCount, dimCount, totalCount: textCount + dimCount };
+  }
+
   public saveDrawing(filename: string): string {
     const clean = filename.replace(/[^a-zA-Z0-9_.-]/g, '');
     const finalName = clean.endsWith('.dwg') ? clean : clean + '.dwg';
@@ -704,7 +743,11 @@ export class CadEngine {
         const largeArc = Math.abs(diff) > 180 ? 1 : 0;
         svgElements += `<path d="M ${sx} ${sy} A ${e.radius} ${e.radius} 0 ${largeArc} 1 ${ex} ${ey}" stroke="${color}" fill="none" stroke-width="1.5" />`;
       } else if (e.type === 'AcDbText' && e.x !== undefined && e.y !== undefined) {
-        svgElements += `<text x="${e.x}" y="${e.y}" fill="${color}" font-family="monospace" font-size="${e.height || 4}">${e.text || ''}</text>`;
+        const rot = e.rotation || 0;
+        const safeText = escapeXml(e.text || '');
+        svgElements += `<g transform="translate(${e.x}, ${e.y}) scale(1, -1) rotate(${-rot})">
+          <text x="0" y="0" fill="${color}" font-family="monospace" font-size="${e.height || 4}">${safeText}</text>
+        </g>`;
       } else if (e.type === 'AcDbHatch') {
         if (e.radius && e.x !== undefined && e.y !== undefined) {
           svgElements += `<circle cx="${e.x}" cy="${e.y}" r="${e.radius}" fill="${color}" fill-opacity="0.35" stroke="${color}" stroke-dasharray="2,2" />`;
@@ -716,17 +759,22 @@ export class CadEngine {
         if (e.x1 !== undefined && e.y1 !== undefined && e.x2 !== undefined && e.y2 !== undefined) {
           const tx = e.text_x || (e.x1 + e.x2) / 2;
           const ty = e.text_y || (e.y1 + e.y2) / 2;
+          const rot = e.rotation || 0;
+          const safeVal = escapeXml(e.measured_value?.toFixed(1) || '');
           svgElements += `<g opacity="0.85">
             <line x1="${e.x1}" y1="${e.y1}" x2="${tx}" y2="${ty}" stroke="#00e5ff" stroke-width="0.75" stroke-dasharray="2,2" />
             <line x1="${e.x2}" y1="${e.y2}" x2="${tx}" y2="${ty}" stroke="#00e5ff" stroke-width="0.75" stroke-dasharray="2,2" />
-            <text x="${tx}" y="${ty}" fill="#00e5ff" font-family="monospace" font-size="3.5" text-anchor="middle">${e.measured_value?.toFixed(1) || ''}</text>
+            <g transform="translate(${tx}, ${ty}) scale(1, -1) rotate(${-rot})">
+              <text x="0" y="0" fill="#00e5ff" font-family="monospace" font-size="3.5" text-anchor="middle" dominant-baseline="middle">${safeVal}</text>
+            </g>
           </g>`;
         }
       }
     }
 
     // Invert Y axis for CAD standard coordinates (Y is up in CAD, down in SVG)
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${boxX} ${boxY} ${boxW} ${boxH}" width="1100" height="${Math.round((boxH / boxW) * 1100)}" style="background:#1e1e1e">
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="${boxX} ${boxY} ${boxW} ${boxH}" width="1100" height="${Math.round((boxH / boxW) * 1100)}" style="background:#1e1e1e">
       <g transform="scale(1, -1) translate(0, ${-(boxY * 2 + boxH)})">
         ${svgElements}
       </g>
@@ -916,6 +964,30 @@ export class CadEngine {
       return `Command: ${verb}\nGenerated main gate drawing (Khung nhôm hộp 4 cánh gập mở ngoài 4000x3400mm) with ${count} entities. Units: mm.`;
     }
 
+    if (
+      verb === 'DOOR' ||
+      verb === 'CUA' ||
+      verb === 'CUADI' ||
+      verb === 'CUANHAVANHANH' ||
+      verb === 'CUABANGDIEN' ||
+      verb === 'CONTROL_DOOR'
+    ) {
+      const count = this.drawControlRoomDoor();
+      return `Command: ${verb}\nGenerated electrical control room door drawing (Cửa đi nhà vận hành bảng điện 2 cánh mở trong 1700x2500mm) with ${count} entities. Units: mm.`;
+    }
+
+    if (
+      verb === 'ROTATE_TEXT' ||
+      verb === 'ROTATETEXT' ||
+      verb === 'TEXT180' ||
+      verb === 'XOAYCHU' ||
+      verb === 'XOAY180'
+    ) {
+      const angle = parts[1] ? parseFloat(parts[1]) : 180;
+      const res = this.rotateAllText(angle);
+      return `Command: ${verb}\nĐã chỉnh lại chữ và số đo quay ${angle}° (${res.textCount} chữ viết và ${res.dimCount} nhãn kích thước).`;
+    }
+
     if (verb === 'STATUS') {
       return JSON.stringify(this.getDrawingInfo(), null, 2);
     }
@@ -925,6 +997,10 @@ export class CadEngine {
 
   public drawMainGate4Leaves(): number {
     return buildAluminumGateDrawing(this);
+  }
+
+  public drawControlRoomDoor(): number {
+    return buildControlRoomDoorDrawing(this);
   }
 
   // --- Export DXF format text ---
@@ -960,5 +1036,5 @@ export class CadEngine {
 }
 
 export const cadEngine = new CadEngine();
-// Initialize drawing with requested 4-leaf aluminum main gate (4000x3400mm outward folding)
-cadEngine.drawMainGate4Leaves();
+// Initialize drawing with requested 2-leaf electrical control room door (1700x2500mm inward opening)
+cadEngine.drawControlRoomDoor();
