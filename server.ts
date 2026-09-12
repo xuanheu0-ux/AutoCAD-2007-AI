@@ -11,6 +11,7 @@ import {
   MCP_TOOLS_LIST,
   executeMcpTool,
 } from './src/mcpTools.js';
+import { computeEstimate, estimateAsMarkdown } from './src/estimate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -268,6 +269,38 @@ async function startServer() {
     });
   });
 
+  // Dedicated endpoint to load the electrical wiring diagram + cost estimate sheet
+  app.post('/api/cad/wiring-drawing', (req, res) => {
+    const count = cadEngine.drawWiringDiagram();
+    const est = computeEstimate();
+    res.json({
+      summary: `Đã nạp bản vẽ Sơ đồ đi dây & Dự toán công trình (sơ đồ 1 tuyến + mặt bằng đi dây + bảng tuyến dây + bảng dự toán tóm tắt, tổng dự toán ${est.grandTotal.toLocaleString(
+        'vi-VN'
+      )} VNĐ) với ${count} thực thể CAD.`,
+      handles: cadEngine.entities.map((e) => e.handle),
+      state: {
+        entities: cadEngine.entities,
+        layers: cadEngine.layers,
+        drawingInfo: cadEngine.getDrawingInfo(),
+        auditLogs: cadEngine.auditLogs.slice(0, 50),
+      },
+    });
+  });
+
+  // Cost estimate (dự toán công trình) as JSON
+  app.get('/api/estimate', (req, res) => {
+    res.json(computeEstimate());
+  });
+
+  // Full cost estimate document (dự toán chi tiết) as downloadable Markdown
+  app.get('/api/estimate/export', (req, res) => {
+    const md = estimateAsMarkdown(computeEstimate());
+    const encodedName = encodeURIComponent('Du_toan_cong_trinh.md');
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="Du_toan_cong_trinh.md"; filename*=UTF-8''${encodedName}`);
+    res.send(md);
+  });
+
   // Dedicated endpoint to rotate all text and numbers (dimensions)
   app.post('/api/cad/rotate-text', (req, res) => {
     const angle = req.body?.angle !== undefined ? Number(req.body.angle) : 180;
@@ -300,6 +333,35 @@ async function startServer() {
       const result = cadEngine.rotateAllText(angle);
       return res.json({
         summary: `Đã chỉnh lại chữ và số đo quay ${angle}° (${result.textCount} thực thể chữ viết và ${result.dimCount} nhãn kích thước).`,
+        state: {
+          entities: cadEngine.entities,
+          layers: cadEngine.layers,
+          drawingInfo: cadEngine.getDrawingInfo(),
+          auditLogs: cadEngine.auditLogs.slice(0, 50),
+        },
+      });
+    }
+
+    // Check if user is requesting the wiring diagram & cost estimate sheet
+    // (checked BEFORE the door drawing: 'sơ đồ đi dây bảng điện' also contains 'bảng điện')
+    if (
+      lower.includes('đi dây') ||
+      lower.includes('di day') ||
+      lower.includes('wiring') ||
+      lower.includes('dự toán') ||
+      lower.includes('du toan') ||
+      lower.includes('one-line') ||
+      lower.includes('1 tuyến') ||
+      lower.includes('1 tuyen') ||
+      lower.includes('sơ đồ 1 tuyến')
+    ) {
+      const count = cadEngine.drawWiringDiagram();
+      const est = computeEstimate();
+      return res.json({
+        summary: `Đã vẽ bản vẽ Sơ đồ đi dây & Dự toán công trình: sơ đồ 1 tuyến (CB tổng 3P 63A + 4 mạch P1-P4), mặt bằng đi dây 6 tuyến (C1-C6) phòng 6.0x4.2m, bảng thống kê tuyến dây và bảng dự toán tóm tắt (tổng ${est.grandTotal.toLocaleString(
+          'vi-VN'
+        )} VNĐ, đã gồm VAT 10%) — ${count} thực thể CAD.`,
+        handles: cadEngine.entities.map((e) => e.handle),
         state: {
           entities: cadEngine.entities,
           layers: cadEngine.layers,
