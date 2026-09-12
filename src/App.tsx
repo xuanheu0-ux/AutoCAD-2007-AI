@@ -303,6 +303,30 @@ export function App() {
     }
   };
 
+  // Load wiring diagram + cost estimate sheet
+  const handleLoadWiringDrawing = async () => {
+    setCommandLogs((prev) => [
+      ...prev,
+      'Loading: Sơ đồ đi dây & Dự toán công trình (sơ đồ 1 tuyến + mặt bằng đi dây + bảng dự toán tóm tắt)...',
+    ]);
+    try {
+      const res = await fetch('/api/cad/wiring-drawing', { method: 'POST' });
+      const data = await res.json();
+      if (data.state) {
+        setEntities(data.state.entities || []);
+        setLayers(data.state.layers || []);
+        if (data.state.drawingInfo) setDrawingInfo(data.state.drawingInfo);
+        if (data.state.auditLogs) setAuditLogs(data.state.auditLogs);
+      }
+      setSelectedHandle(null);
+      setIsTextRotated180(false);
+      setCommandLogs((prev) => [...prev, data.summary || 'Wiring diagram & estimate loaded successfully.']);
+    } catch (err: any) {
+      console.error('Wiring load error:', err);
+      setCommandLogs((prev) => [...prev, `Wiring load error: ${err.message}`]);
+    }
+  };
+
   // Rotate text and dimension numbers 180 degrees
   const handleRotateText = async () => {
     try {
@@ -397,6 +421,7 @@ export function App() {
         onOpenAiDraw={() => setShowAiModal(true)}
         onLoadGateDrawing={handleLoadGateDrawing}
         onLoadDoorDrawing={handleLoadDoorDrawing}
+        onLoadWiringDrawing={handleLoadWiringDrawing}
         onRotateText={handleRotateText}
         isTextRotated180={isTextRotated180}
         onNewDrawing={handleNewDrawing}
@@ -404,6 +429,7 @@ export function App() {
         onQuickDraw={handleQuickDraw}
         onExportDxf={() => window.open('/api/cad/export/dxf', '_blank')}
         onExportSvg={() => window.open('/api/cad/export/svg', '_blank')}
+        onDownloadEstimate={() => window.open('/api/estimate/export', '_blank')}
         onToggleMcpPanel={() => setShowMcpPanel(!showMcpPanel)}
         showMcpPanel={showMcpPanel}
         smokeTestRunning={smokeTestRunning}

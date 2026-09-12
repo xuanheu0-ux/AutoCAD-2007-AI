@@ -1,6 +1,8 @@
 import { CadEntity, CadLayer, DrawingInfo, ToolCallLog, SmokeTestStepResult } from './types.js';
 import { buildAluminumGateDrawing } from './gateDrawing.js';
 import { buildControlRoomDoorDrawing } from './controlRoomDoorDrawing.js';
+import { buildWiringDiagram } from './wiringDrawing.js';
+import { computeEstimate, estimateAsText } from './estimate.js';
 
 export const COLORS: Record<string, number> = {
   red: 1,
@@ -977,6 +979,22 @@ export class CadEngine {
     }
 
     if (
+      verb === 'WIRING' ||
+      verb === 'WIRINGDRAW' ||
+      verb === 'DODAY' ||
+      verb === 'DI_DAY' ||
+      verb === 'SODODAY' ||
+      verb === 'DANGIAY'
+    ) {
+      const count = this.drawWiringDiagram();
+      return `Command: ${verb}\nGenerated electrical wiring diagram & cost estimate sheet (Sơ đồ đi dây & dự toán công trình - nhà vận hành bảng điện, 6.0x4.2m) with ${count} entities. Units: mm.`;
+    }
+
+    if (verb === 'DUTOAN' || verb === 'DU_TOAN' || verb === 'ESTIMATE') {
+      return `Command: ${verb}\n${estimateAsText(computeEstimate())}`;
+    }
+
+    if (
       verb === 'ROTATE_TEXT' ||
       verb === 'ROTATETEXT' ||
       verb === 'TEXT180' ||
@@ -1001,6 +1019,10 @@ export class CadEngine {
 
   public drawControlRoomDoor(): number {
     return buildControlRoomDoorDrawing(this);
+  }
+
+  public drawWiringDiagram(): number {
+    return buildWiringDiagram(this);
   }
 
   // --- Export DXF format text ---
