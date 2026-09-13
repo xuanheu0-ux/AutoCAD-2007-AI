@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { cadEngine } from './cadEngine.js';
+import { computeEstimate, estimateAsText } from './estimate.js';
 
 const SECRET_FILE = path.join(process.cwd(), '.secret');
 
@@ -348,6 +349,24 @@ export const MCP_TOOLS_LIST = [
       required: ['command'],
     },
   },
+  {
+    name: 'wiring_drawing',
+    description:
+      "Load the pre-designed electrical wiring diagram & cost estimate sheet (Sơ đồ đi dây & dự toán công trình) for the switchgear operating room: one-line power diagram, cable routing plan (6 routes), cable schedule, technical notes and cost estimate summary table.",
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'get_estimate',
+    description:
+      'Return the project cost estimate (dự toán công trình) as a text table: materials, labor, machinery, overhead, profit, VAT and the grand total in VND.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 export async function executeMcpTool(name: string, args: Record<string, any>): Promise<any> {
@@ -484,6 +503,18 @@ export async function executeMcpTool(name: string, args: Record<string, any>): P
       }
       case 'run_command': {
         resultText = cadEngine.runCommand(String(args.command));
+        break;
+      }
+      case 'wiring_drawing': {
+        const count = cadEngine.drawWiringDiagram();
+        const est = computeEstimate();
+        resultText = `Loaded the wiring diagram & cost estimate sheet (${count} entities). Grand total: ${est.grandTotal.toLocaleString(
+          'vi-VN'
+        )} VND (VAT 10% included). Use capture_view to see the drawing.`;
+        break;
+      }
+      case 'get_estimate': {
+        resultText = estimateAsText(computeEstimate());
         break;
       }
       default:

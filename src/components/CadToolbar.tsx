@@ -18,6 +18,8 @@ import {
   Columns3,
   Zap,
   RotateCw,
+  Cable,
+  FileText,
 } from 'lucide-react';
 
 interface CadToolbarProps {
@@ -30,6 +32,8 @@ interface CadToolbarProps {
   onOpenAiDraw: () => void;
   onLoadGateDrawing?: () => void;
   onLoadDoorDrawing?: () => void;
+  onLoadWiringDrawing?: () => void;
+  onDownloadEstimate?: () => void;
   onRotateText?: () => void;
   isTextRotated180?: boolean;
   onNewDrawing: () => void;
@@ -52,6 +56,8 @@ export const CadToolbar: React.FC<CadToolbarProps> = ({
   onOpenAiDraw,
   onLoadGateDrawing,
   onLoadDoorDrawing,
+  onLoadWiringDrawing,
+  onDownloadEstimate,
   onRotateText,
   isTextRotated180,
   onNewDrawing,
@@ -216,6 +222,19 @@ export const CadToolbar: React.FC<CadToolbarProps> = ({
             </button>
           )}
 
+          {/* Sơ đồ đi dây + Dự toán button */}
+          {onLoadWiringDrawing && (
+            <button
+              id="load-wiring-drawing-btn"
+              onClick={onLoadWiringDrawing}
+              title="Tải bản vẽ Sơ đồ đi dây & Dự toán công trình (sơ đồ 1 tuyến + mặt bằng đi dây + bảng tuyến dây + bảng dự toán tóm tắt)"
+              className="flex items-center gap-1.5 px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-emerald-100 hover:text-white rounded text-xs font-medium border border-emerald-500 shadow-sm transition"
+            >
+              <Cable size={13} className="text-emerald-300" />
+              <span>Sơ đồ đi dây + Dự toán</span>
+            </button>
+          )}
+
           {/* Rotate Text & Numbers 180° button */}
           {onRotateText && (
             <button
@@ -291,6 +310,19 @@ export const CadToolbar: React.FC<CadToolbarProps> = ({
                 >
                   Download .SVG
                 </button>
+                {onDownloadEstimate && (
+                  <button
+                    id="export-estimate-btn"
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      onDownloadEstimate();
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-emerald-300 hover:bg-neutral-700 transition"
+                  >
+                    <FileText size={12} className="inline mr-1" />
+                    Dự toán (.md)
+                  </button>
+                )}
               </div>
             )}
           </div>
